@@ -1,0 +1,36 @@
+SELECT b.* FROM `macro-centaur-330222.service_migration_dataset.cluster_job_log` b
+WHERE ((SELECT count(distinct(a.jobid)) FROM `macro-centaur-330222.service_migration_dataset.cluster_job_log` a
+WHERE (a.cpu_id=b.cpu_id and a.jobid!=b.jobid and NOT(a.utc_end_time<=b.utc_start_time or a.utc_start_time>=b.utc_end_time)))=0)
+
+ALTER TABLE `macro-centaur-330222.service_migration_dataset.cluster_job_log_nocross` DROP COLUMN vc
+
+ALTER TABLE `macro-centaur-330222.service_migration_dataset.cluster_mem_util` DROP COLUMN time_string
+
+DELETE `macro-centaur-330222.service_migration_dataset.cluster_mem_util`
+WHERE mem_total is null
+
+UPDATE `macro-centaur-330222.service_migration_dataset.cluster_mem_util`
+SET mem_util=1-(mem_free/mem_total)
+WHERE mem_total!=0
+
+SELECT job.* ,
+(SELECT avg(cpu.cpu_util) FROM `macro-centaur-330222.service_migration_dataset.cluster_cpu_util` cpu
+WHERE (job.cpu_id=cpu.machine_id and cpu.time_utc>=job.utc_start_time and cpu.time_utc<=job.utc_end_time)) as cpu_usage_mean,
+(SELECT case
+WHEN job.gpu_id="gpu0" then avg(gpu.gpu0_util)
+WHEN job.gpu_id="gpu1" then avg(gpu.gpu1_util)
+WHEN job.gpu_id="gpu2" then avg(gpu.gpu2_util)
+WHEN job.gpu_id="gpu3" then avg(gpu.gpu3_util)
+WHEN job.gpu_id="gpu4" then avg(gpu.gpu4_util)
+WHEN job.gpu_id="gpu5" then avg(gpu.gpu5_util)
+WHEN job.gpu_id="gpu6" then avg(gpu.gpu6_util)
+ELSE avg(gpu.gpu7_util) END
+ FROM `macro-centaur-330222.service_migration_dataset.cluster_gpu_util` gpu
+WHERE (job.cpu_id=gpu.machineId and gpu.time_utc>=job.utc_start_time and gpu.time_utc<=job.utc_end_time)) as gpu_usage_mean,
+(SELECT avg(mem.mem_util) FROM `macro-centaur-330222.service_migration_dataset.cluster_mem_util` mem
+WHERE (job.cpu_id=mem.cpu_id and mem.utc_time>=job.utc_start_time and mem.utc_time<=job.utc_end_time)) as mem_usage_mean
+FROM `macro-centaur-330222.service_migration_dataset.cluster_job_log_nocross` job
+
+
+
+
